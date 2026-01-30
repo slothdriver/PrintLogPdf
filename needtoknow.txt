@@ -16,6 +16,7 @@ git checkout 9bc21d -- Form1.cs //특정 커밋으로 파일 하나만 복구.
 git status //수정된 파일
               //add된 파일
              //commint안한 변경 등 현재상태 출력
+git config --global user.name "acatundercar" //commit시에 어떤 user이름으로 할것이냐?
 
 
 
