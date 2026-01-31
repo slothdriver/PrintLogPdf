@@ -230,7 +230,7 @@ namespace PrintLogPdf
 
                 var rows = new List<LogRow>();
 
-                string SystemDbPath = @"C:SystemLog\SystemLog.db";
+                string SystemDbPath = @"C:\SystemLog\SystemLog.db";
                 string AlarmDbPath = @"C:\Alarm\GlobalAlarm.db";
 
                 string SystemconnStr = $"Data Source={SystemDbPath};";
@@ -255,11 +255,9 @@ namespace PrintLogPdf
 
                     using (var cmd = new SQLiteCommand(sqlAlarm, conn))
                     {
-                        // ✅ 1. 파라미터 먼저 바인딩
                         cmd.Parameters.AddWithValue("@from", from);
                         cmd.Parameters.AddWithValue("@to", to);
 
-                        // ✅ 2. 그 다음 실행
                         using (var reader = cmd.ExecuteReader())
                         {
                             while (reader.Read())
@@ -362,147 +360,129 @@ namespace PrintLogPdf
                     {
                         page.Size(PageSizes.A4);
                         page.Margin(30);
+
                         page.Content().Column(col =>
                         {
-                            // ===== 파일명 =====
+                            // ===== 헤더 =====
                             col.Item().PaddingBottom(6)
-                                    .Text(titleText)
-                                    .FontSize(16)
-                                    .Bold();
-                                    
-                            col.Item()
-                                    .LineHorizontal(3)
-                                    .LineColor(Colors.Green.Darken2);
-                            col.Item().Text("");
+                                .Text(titleText)
+                                .FontSize(16)
+                                .Bold();
+
+                            col.Item().LineHorizontal(3).LineColor(Colors.Green.Darken2);
                             col.Item().Text("");
 
-                            col.Item()
-                                    .LineHorizontal(2)
-                                    .LineColor(Colors.LightBlue.Medium);
+                            col.Item().LineHorizontal(2).LineColor(Colors.LightBlue.Medium);
                             col.Item().PaddingTop(6)
-                                    .Text($"Last Login User : {lastLoginUserId}")
-                                    .FontSize(11)
-                                    .FontColor(Colors.Grey.Darken2);
+                                .Text($"Last Login User : {lastLoginUserId}")
+                                .FontSize(11)
+                                .FontColor(Colors.Grey.Darken2);
+
                             col.Item().PaddingBottom(6)
-                                    .Text($"Report 작성자 : {userId}")
-                                    .FontSize(11);
-                            col.Item()
-                                    .LineHorizontal(2)
-                                    .LineColor(Colors.LightBlue.Medium);
+                                .Text($"Report 작성자 : {userId}")
+                                .FontSize(11);
+
+                            col.Item().LineHorizontal(2).LineColor(Colors.LightBlue.Medium);
+                            col.Item().Text("");
+
+                            col.Item().LineHorizontal(2).LineColor(Colors.LightBlue.Medium);
+                            col.Item().PaddingVertical(6)
+                                .Text($"Period : {from} ~ {to}")
+                                .FontSize(11);
+                            col.Item().LineHorizontal(2).LineColor(Colors.LightBlue.Medium);
 
                             col.Item().Text("");
                             col.Item().Text("");
 
-
-                            col.Item()
-                                    .LineHorizontal(2)
-                                    .LineColor(Colors.LightBlue.Medium);
-                            
-                            col.Item().PaddingTop(6)
-                                    .PaddingBottom(6)
-                                    .Text($"Period : {from} ~ {to}").FontSize(11);
-                            col.Item()
-                                    .LineHorizontal(2)
-                                    .LineColor(Colors.LightBlue.Medium);
-                                    
-                            col.Item().Text("");
-                            col.Item().Text("");
-
-                            // ===== 로그 데이터 =====
-                            
+                            // ===== 데이터 그룹 =====
                             var grouped = rows
                                 .GroupBy(r => r.Category)
                                 .ToDictionary(g => g.Key, g => g.ToList());
 
-                            LogCategory[] order =
+                            if (grouped.TryGetValue(LogCategory.Login, out var loginItems))
                             {
-                                LogCategory.Login,
-                                LogCategory.Alarm,  
-                                LogCategory.PlcReason,
-                                LogCategory.Scada,
-                                LogCategory.Other
-                            };
-
-                            foreach (var cat in order)
-                            {
-                                if (!grouped.TryGetValue(cat, out var items) || items.Count == 0)
-                                    continue;
-
-                                col.Item()
-                                .PaddingTop(6)
-                                .Text(SectionTitle(cat))
-                                .FontSize(12)
-                                .Bold();
-
+                                col.Item().Text("Login").FontSize(12).Bold();
                                 col.Item().LineHorizontal(1);
                                 col.Item().PaddingBottom(6);
 
-                                // ===== 1️⃣ Login 섹션은 여기서 따로 처리 =====
-                                if (cat == LogCategory.Login)
+                                var login = loginItems
+                                    .Where(r => r.M.Contains("Login -", StringComparison.OrdinalIgnoreCase))
+                                    .Take(1)
+                                    .FirstOrDefault();
+
+                                if (login != null)
                                 {
-                                    var login = items
-                                        .Where(r => r.M.Contains("Login -", StringComparison.OrdinalIgnoreCase))
-                                        .Take(1)
-                                        .FirstOrDefault();
+                                    string id = login.M.Split("ID:").Last().Trim();
+                                    string date = DateTime.ParseExact(login.D, "yyyyMMdd", null).ToString("yyyy-MM-dd");
+                                    string time = DateTime.ParseExact(login.T.Substring(0, 6), "HHmmss", null).ToString("HH:mm:ss");
 
-                                    if (login != null)
-                                    {
-                                        string id = login.M
-                                            .Split("ID:", StringSplitOptions.RemoveEmptyEntries)
-                                            .Last()
-                                            .Trim();
-
-                                        string date = DateTime.ParseExact(
-                                            login.D, "yyyyMMdd", null).ToString("yyyy-MM-dd");
-
-                                        string time = DateTime.ParseExact(
-                                            login.T.Substring(0, 6), "HHmmss", null).ToString("HH:mm:ss");
-
-                                        col.Item().Text($"작업자   : {id}").FontSize(10);
-                                        col.Item().Text($"작업일 : {date}").FontSize(10);
-                                        col.Item().Text($"작업시간 : {time}").FontSize(10);
-                                    }
-
-                                    col.Item().PaddingBottom(12);
-                                    continue;   // 🔥 Login은 여기서 끝
+                                    col.Item().Text($"작업자   : {id}").FontSize(10);
+                                    col.Item().Text($"작업일 : {date}").FontSize(10);
+                                    col.Item().Text($"작업시간 : {time}").FontSize(10);
                                 }
 
-                                if (cat == LogCategory.Alarm)
+                                col.Item().PaddingBottom(16);
+                            }
+
+                            // Section 2 : Alarm
+                            if (grouped.TryGetValue(LogCategory.Alarm, out var alarmItems))
+                            {
+                                col.Item().Text("Alarm").FontSize(12).Bold();
+                                col.Item().LineHorizontal(1);
+                                col.Item().PaddingBottom(6);
+
+                                foreach (var r in alarmItems)
                                 {
-                                    foreach (var r in items)
-                                    {
-                                        col.Item()
+                                    col.Item()
                                         .Text($"{r.D} {r.T} | 복구시간:{r.Recovery} | {r.M}")
                                         .FontSize(9)
                                         .FontColor(
                                             string.IsNullOrEmpty(r.Recovery)
-                                                ? Colors.Red.Darken2   // ACTIVE
+                                                ? Colors.Red.Darken2
                                                 : Colors.Black
                                         );
-                                    }
-
-                                    col.Item().PaddingBottom(12);
-                                    continue;
                                 }
+                            }
+                        });
+                    });
+                    // 📄 PAGE 2~ : 섹션 하나당 한 페이지
+                    LogCategory[] rest =
+                    {
+                        LogCategory.PlcReason,
+                        LogCategory.Scada,
+                        LogCategory.Other
+                    };
 
-                                // ===== 2️⃣ 나머지 섹션은 기존 방식 그대로 =====
-                                foreach (var r in items)
+                    foreach (var cat in rest)
+                    {
+                        if (!rows.Any(r => r.Category == cat))
+                            continue;
+
+                        doc.Page(page =>
+                        {
+                            page.Size(PageSizes.A4);
+                            page.Margin(30);
+
+                            page.Content().Column(col =>
+                            {
+                                col.Item()
+                                    .Text(SectionTitle(cat))
+                                    .FontSize(14)
+                                    .Bold();
+
+                                col.Item().LineHorizontal(2);
+                                col.Item().PaddingBottom(10);
+
+                                foreach (var r in rows.Where(r => r.Category == cat))
                                 {
                                     col.Item()
-                                    .Text($"{r.D} {r.T} | {r.U} | {r.Ty} | {r.M}")
-                                    .FontSize(9)
-                                    .LineHeight(1.4f);
+                                        .Text($"{r.D} {r.T} | {r.U} | {r.Ty} | {r.M}")
+                                        .FontSize(9)
+                                        .LineHeight(1.4f);
                                 }
-
-                                col.Item().PaddingBottom(12);
-                            }
-
-
-
-                            
+                            });
                         });
-
-                    });
+                    }
                 }).GeneratePdf(pdfPath);
 
                 return pdfPath;
