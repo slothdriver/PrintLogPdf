@@ -1,6 +1,8 @@
-경로
+경로(회사)
 C:\Program Files (x86)\M2I Corp\TOP Design Studio\SCADA\Database\SystemLog\SystemLog.db
-C:\Program Files (x86)\M2I Corp\TOP Design Studio\SCADA\Database\Alarm\GlobalAlarm.db
+C:\Program Files (x86)\M2I Corp\TOP Design Studio\SCADA\Database\Alarm\GlobalAlarm.Database
+C:\SystemLog\SystemLog.db
+C:\Alarm\GlobalAlarm.db
 
 USB이동 설치용 명령
 dotnet publish -c Release -r win-x64 --self-contained true

@@ -230,8 +230,8 @@ namespace PrintLogPdf
 
                 var rows = new List<LogRow>();
 
-                string SystemDbPath = @"C:\Program Files (x86)\M2I Corp\TOP Design Studio\SCADA\Database\SystemLog\SystemLog.db";
-                string AlarmDbPath = @"C:\Program Files (x86)\M2I Corp\TOP Design Studio\SCADA\Database\Alarm\GlobalAlarm.db";
+                string SystemDbPath = @"C:SystemLog\SystemLog.db";
+                string AlarmDbPath = @"C:\Alarm\GlobalAlarm.db";
 
                 string SystemconnStr = $"Data Source={SystemDbPath};";
                 string AlarmconnStr = $"Data Source={AlarmDbPath}";
