@@ -364,7 +364,7 @@ namespace PrintLogPdf
 
                 string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                 string fileName = $"Airex_{timestamp}.pdf";
-                string titleText = Path.GetFileNameWithoutExtension(fileName);
+                string titleText = "Isolator Batch Process Record";
                 
 
                 string pdfPath = Path.Combine(
@@ -392,145 +392,158 @@ namespace PrintLogPdf
                             col.Item().Text("");
 
                             col.Item().PaddingTop(15).LineHorizontal(2).LineColor(Colors.LightBlue.Medium);
-                            col.Item().PaddingTop(6)
-                                .Text($"Last Login User : {lastLoginUserId}")
-                                .FontSize(11)
-                                .FontColor(Colors.Grey.Darken2);
+                        
+                            col.Item().Table(table =>
+                                {
+                                    table.ColumnsDefinition(columns =>
+                                    {
+                                        columns.ConstantColumn(130);   // 항목명
+                                        columns.RelativeColumn();     // 값
+                                    });
 
-                            col.Item().PaddingBottom(6)
-                                .Text($"Report 작성자 : {userId}")
-                                .FontSize(11);
+                                    void Row(string label, string value)
+                                    {
+                                        table.Cell().PaddingVertical(8)
+                                            .Text(label)
+                                            .SemiBold();
 
-                            col.Item().LineHorizontal(2).LineColor(Colors.LightBlue.Medium);
+                                        table.Cell().PaddingVertical(8)
+                                            .Text(value);
+                                    }
+
+                                    Row("관리자(문서검토자)", userId);
+                                    Row("문서출력시간", timestamp);
+                                    Row("조회기간", $"{from} ~ {to}");
+                                });
+
+                            
+                            col.Item().PaddingTop(15).LineHorizontal(2).LineColor(Colors.LightBlue.Medium);
+
+                            col.Item().Text("");
                             col.Item().Text("");
 
-                            col.Item().LineHorizontal(2).LineColor(Colors.LightBlue.Medium);
-                            col.Item().PaddingVertical(6)
-                                .Text($"Period : {from} ~ {to}")
-                                .FontSize(11);
-                            col.Item().LineHorizontal(2).LineColor(Colors.LightBlue.Medium);
-
-                            col.Item().Text("");
-                            col.Item().Text("");
-
-                            // ===== 데이터 그룹 =====
                             var grouped = rows
                                 .GroupBy(r => r.Category)
                                 .ToDictionary(g => g.Key, g => g.ToList());
 
-                            if (grouped.TryGetValue(LogCategory.Login, out var loginItems))
+                            // ===== Section 1 : Login Info =====
+                            col.Item().PaddingTop(30)
+                                .Text("1. Login Info")
+                                .FontSize(14)
+                                .Bold();
+
+                            col.Item().LineHorizontal(2);
+                            col.Item().PaddingBottom(10);
+
+                            if (!grouped.TryGetValue(LogCategory.Login, out var loginItems)
+                                || loginItems.Count == 0)
                             {
-                                col.Item().PaddingTop(30).Text("1. Login Info").FontSize(14).Bold();
-                                col.Item().LineHorizontal(2);
-                                col.Item().PaddingBottom(10);
-
-                                col.Item().Table(table =>
-                                {
-                                table.ColumnsDefinition(columns =>
-                                {
-                                    columns.ConstantColumn(80);   // 표제 (고정 폭)
-                                    columns.RelativeColumn();     // 내용
-                                });
-
-                                void Row(string label, string value)
-                                {
-                                    table.Cell().PaddingVertical(4)
-                                        .Text(label)
-                                        .SemiBold();
-
-                                    table.Cell().PaddingVertical(4)
-                                        .Text(value);
-                                }
-
-                                Row("작업자", lastLoginUserId);
-                                Row("작업일", lastLoginDate);
-                                Row("작업시간", lastLoginTime);
-
-                                });
-
-
-                                col.Item().PaddingBottom(20);
-                            }
-
-                            // Section 2 : Alarm
-                            if (rows.Count == 0)
-                            {
-                                col.Item().PaddingTop(12)
+                                // Login 데이터 없음
+                                col.Item()
+                                    .PaddingTop(12)
                                     .Text("내용 없음")
                                     .Italic()
                                     .FontColor(Colors.Grey.Medium);
                             }
-                            else 
+                            else
                             {
-                            if (grouped.TryGetValue(LogCategory.Alarm, out var alarmItems))
+                                // Login 데이터 있음
+                                col.Item().Table(table =>
                                 {
-                                    col.Item().PaddingTop(30).Text("2. Alarm").FontSize(14).Bold();
-                                    col.Item().LineHorizontal(2);
-                                    col.Item().PaddingBottom(10);
-
-                                    col.Item().Table(table =>
+                                    table.ColumnsDefinition(columns =>
                                     {
-                                        table.ColumnsDefinition(columns =>
-                                        {
-                                            columns.RelativeColumn(2); // Date
-                                            columns.RelativeColumn(2); // Time
-                                            columns.RelativeColumn(3); // Message
-                                            columns.RelativeColumn(2); // Recovery
-                                        });
-
-                                        // ===== Header =====
-                                        table.Header(header =>
-                                        {
-                                            header.Cell().Background(Colors.Blue.Medium)
-                                                .Padding(5)
-                                                .Text("Date").FontColor(Colors.White).Bold();
-
-                                            header.Cell().Background(Colors.Blue.Medium)
-                                                .Padding(5)
-                                                .Text("Occur Time").FontColor(Colors.White).Bold();
-
-                                            header.Cell().Background(Colors.Blue.Medium)
-                                                .Padding(5)
-                                                .Text("Alarm Message").FontColor(Colors.White).Bold();
-
-                                            header.Cell().Background(Colors.Blue.Medium)
-                                                .Padding(5)
-                                                .Text("Recovery Time").FontColor(Colors.White).Bold();
-                                        });
-
-                                        // ===== Rows =====
-                                        for (int i = 0; i < alarmItems.Count; i++)
-                                        {
-                                            var r = alarmItems[i];
-
-                                            var bg = (i % 2 == 0)
-                                                ? Colors.LightBlue.Lighten5
-                                                : Colors.LightBlue.Lighten4;
-
-                                            table.Cell().Background(bg).Padding(6)
-                                                .Text(r.D).FontSize(9);
-
-                                            table.Cell().Background(bg).Padding(6)
-                                                .Text(r.T).FontSize(9);
-
-                                            table.Cell().Background(bg).Padding(6)
-                                                .Text(r.M)
-                                                .FontSize(9)
-                                                .FontColor(
-                                                    string.IsNullOrEmpty(r.Recovery)
-                                                        ? Colors.Red.Darken2   // ACTIVE
-                                                        : Colors.Black
-                                                );
-
-                                            table.Cell().Background(bg).Padding(6)
-                                                .Text(string.IsNullOrEmpty(r.Recovery) ? "-" : r.Recovery)
-                                                .FontSize(9);
-                                        }
+                                        columns.ConstantColumn(80);   // 항목명
+                                        columns.RelativeColumn();     // 값
                                     });
 
-                                    col.Item().PaddingBottom(12);
-                                }
+                                    void Row(string label, string value)
+                                    {
+                                        table.Cell().PaddingVertical(4)
+                                            .Text(label)
+                                            .SemiBold();
+
+                                        table.Cell().PaddingVertical(4)
+                                            .Text(value);
+                                    }
+
+                                    Row("작업자", lastLoginUserId);
+                                    Row("작업일", lastLoginDate);
+                                    Row("작업시간", lastLoginTime);
+                                });
+
+                                col.Item().PaddingBottom(20);
                             }
+
+
+                            // Section 2 : Alarm
+                            col.Item().PaddingTop(30)
+                                .Text("2. Alarm Logs")
+                                .FontSize(14)
+                                .Bold();
+
+                            col.Item().LineHorizontal(2);
+                            col.Item().PaddingBottom(10);
+
+                            if (!grouped.TryGetValue(LogCategory.Alarm, out var alarmItems)
+                                || alarmItems.Count == 0)
+                            {
+                                col.Item()
+                                    .PaddingTop(12)
+                                    .Text("내용 없음")
+                                    .Italic()
+                                    .FontColor(Colors.Grey.Medium);
+                            }
+                            else
+                            {
+                                col.Item().Table(table =>
+                                {
+                                    table.ColumnsDefinition(columns =>
+                                    {
+                                        columns.RelativeColumn(2);
+                                        columns.RelativeColumn(2);
+                                        columns.RelativeColumn(3);
+                                        columns.RelativeColumn(2);
+                                    });
+
+                                    // Header
+                                    table.Header(header =>
+                                    {
+                                        header.Cell().Background(Colors.Grey.Darken3)
+                                            .Padding(5).Text("Date").FontColor(Colors.White).Bold();
+
+                                        header.Cell().Background(Colors.Grey.Darken3)
+                                            .Padding(5).Text("Occur Time").FontColor(Colors.White).Bold();
+
+                                        header.Cell().Background(Colors.Grey.Darken3)
+                                            .Padding(5).Text("Alarm Message").FontColor(Colors.White).Bold();
+
+                                        header.Cell().Background(Colors.Grey.Darken3)
+                                            .Padding(5).Text("Recovery Time").FontColor(Colors.White).Bold();
+                                    });
+
+                                    for (int i = 0; i < alarmItems.Count; i++)
+                                    {
+                                        var r = alarmItems[i];
+                                        var bg = (i % 2 == 0)
+                                            ? Colors.Grey.Lighten5
+                                            : Colors.Grey.Lighten2;
+
+                                        table.Cell().Background(bg).Padding(6).Text(r.D).FontSize(9);
+                                        table.Cell().Background(bg).Padding(6).Text(r.T).FontSize(9);
+                                        table.Cell().Background(bg).Padding(6)
+                                            .Text(r.M)
+                                            .FontSize(9)
+                                            .FontColor(string.IsNullOrEmpty(r.Recovery)
+                                                ? Colors.Red.Darken2
+                                                : Colors.Black);
+
+                                        table.Cell().Background(bg).Padding(6)
+                                            .Text(string.IsNullOrEmpty(r.Recovery) ? "-" : r.Recovery)
+                                            .FontSize(9);
+                                    }
+                                });
+                            }
+
                         });
                     });
                     // 📄 PAGE 2~ : 섹션 하나당 한 페이지
@@ -552,7 +565,7 @@ namespace PrintLogPdf
 
                             page.Content().Column(col =>
                             {
-                                //제목은 항상 출력
+                                // 제목은 항상 출력
                                 col.Item()
                                     .Text(SectionTitle(cat))
                                     .FontSize(14)
@@ -561,7 +574,6 @@ namespace PrintLogPdf
                                 col.Item().LineHorizontal(2);
                                 col.Item().PaddingBottom(10);
 
-                                //cat 기준으로 내용 유무 판단
                                 if (catRows.Count == 0)
                                 {
                                     col.Item().PaddingTop(12)
@@ -571,9 +583,19 @@ namespace PrintLogPdf
                                 }
                                 else
                                 {
-                                    foreach (var r in catRows)
+                                    for (int i = 0; i < catRows.Count; i++)
                                     {
+                                        var r = catRows[i];
+
+                                        //zebra pattern start
+                                        var bg = (i % 2 == 0)
+                                            ? Colors.Grey.Lighten5
+                                            : Colors.Grey.Lighten2;
+
                                         col.Item()
+                                            .Background(bg)          
+                                            .PaddingVertical(6)
+                                            .PaddingHorizontal(8)
                                             .Text($"{r.D} {r.T} | {r.U} | {r.Ty} | {r.M}")
                                             .FontSize(9)
                                             .LineHeight(1.4f);
@@ -582,7 +604,6 @@ namespace PrintLogPdf
                             });
                         });
                     }
-
                 }).GeneratePdf(pdfPath);
 
                 return pdfPath;
