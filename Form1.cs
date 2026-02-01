@@ -235,7 +235,10 @@ namespace PrintLogPdf
 
                 string SystemconnStr = $"Data Source={SystemDbPath};";
                 string AlarmconnStr = $"Data Source={AlarmDbPath}";
+
                 string lastLoginUserId = "UNKNOWN";
+                string lastLoginDate   = "-";
+                string lastLoginTime   = "-";
 
                 using (var conn = new SQLiteConnection(AlarmconnStr))
                 {
@@ -298,26 +301,41 @@ namespace PrintLogPdf
                     WHERE LOG_DATE BETWEEN @from AND @to
                     ORDER BY LOG_DATE DESC, LOG_TIME DESC;
                     ";
-
+                    
                     string sqlLastLogin = @"
                     SELECT USER_ID, USER_NM, LOG_DATE, LOG_TIME
                     FROM TB_SECULOG
                     WHERE LOG_MSG LIKE 'Login - ID:%'
                     AND USER_ID IS NOT NULL
+                    AND LOG_DATE BETWEEN @from AND @to
                     ORDER BY LOG_DATE DESC, LOG_TIME DESC
                     LIMIT 1;
                     ";
-                    
 
                     using (var cmdLast = new SQLiteCommand(sqlLastLogin, conn))
-                    using (var rLast = cmdLast.ExecuteReader())
                     {
-                         if (rLast.Read())
-                        {
-                            string uid = rLast["USER_ID"].ToString()!;
-                            string role = rLast["USER_NM"].ToString()!;
+                        
+                        cmdLast.Parameters.AddWithValue("@from", from);
+                        cmdLast.Parameters.AddWithValue("@to", to);
 
-                            lastLoginUserId = $"{uid}({role.ToLower()})";
+                        using (var rLast = cmdLast.ExecuteReader())
+                        {
+                            if (rLast.Read())
+                            {
+                                string uid  = rLast["USER_ID"].ToString()!;
+                                string role = rLast["USER_NM"].ToString()!;
+
+                                lastLoginUserId = $"{uid}({role.ToLower()})";
+                                lastLoginDate   = rLast["LOG_DATE"].ToString()!;
+                                lastLoginTime   = rLast["LOG_TIME"].ToString()!;
+                            }
+                            else
+                            {
+                                // 기간 내 로그인 없을 때
+                                lastLoginUserId = "NONE";
+                                lastLoginDate = "-";
+                                lastLoginTime = "-";
+                            }
                         }
                     }
                     using var cmd = new SQLiteCommand(sqlLogList, conn);
@@ -369,10 +387,11 @@ namespace PrintLogPdf
                                 .FontSize(16)
                                 .Bold();
 
-                            col.Item().LineHorizontal(3).LineColor(Colors.Green.Darken2);
+                            col.Item().PaddingBottom(6).LineHorizontal(3).LineColor(Colors.Green.Darken2);
+                            col.Item().Text("");
                             col.Item().Text("");
 
-                            col.Item().LineHorizontal(2).LineColor(Colors.LightBlue.Medium);
+                            col.Item().PaddingTop(15).LineHorizontal(2).LineColor(Colors.LightBlue.Medium);
                             col.Item().PaddingTop(6)
                                 .Text($"Last Login User : {lastLoginUserId}")
                                 .FontSize(11)
@@ -401,46 +420,115 @@ namespace PrintLogPdf
 
                             if (grouped.TryGetValue(LogCategory.Login, out var loginItems))
                             {
-                                col.Item().Text("Login").FontSize(12).Bold();
-                                col.Item().LineHorizontal(1);
-                                col.Item().PaddingBottom(6);
+                                col.Item().PaddingTop(30).Text("1. Login Info").FontSize(14).Bold();
+                                col.Item().LineHorizontal(2);
+                                col.Item().PaddingBottom(10);
 
-                                var login = loginItems
-                                    .Where(r => r.M.Contains("Login -", StringComparison.OrdinalIgnoreCase))
-                                    .Take(1)
-                                    .FirstOrDefault();
-
-                                if (login != null)
+                                col.Item().Table(table =>
                                 {
-                                    string id = login.M.Split("ID:").Last().Trim();
-                                    string date = DateTime.ParseExact(login.D, "yyyyMMdd", null).ToString("yyyy-MM-dd");
-                                    string time = DateTime.ParseExact(login.T.Substring(0, 6), "HHmmss", null).ToString("HH:mm:ss");
+                                table.ColumnsDefinition(columns =>
+                                {
+                                    columns.ConstantColumn(80);   // 표제 (고정 폭)
+                                    columns.RelativeColumn();     // 내용
+                                });
 
-                                    col.Item().Text($"작업자   : {id}").FontSize(10);
-                                    col.Item().Text($"작업일 : {date}").FontSize(10);
-                                    col.Item().Text($"작업시간 : {time}").FontSize(10);
+                                void Row(string label, string value)
+                                {
+                                    table.Cell().PaddingVertical(4)
+                                        .Text(label)
+                                        .SemiBold();
+
+                                    table.Cell().PaddingVertical(4)
+                                        .Text(value);
                                 }
 
-                                col.Item().PaddingBottom(16);
+                                Row("작업자", lastLoginUserId);
+                                Row("작업일", lastLoginDate);
+                                Row("작업시간", lastLoginTime);
+
+                                });
+
+
+                                col.Item().PaddingBottom(20);
                             }
 
                             // Section 2 : Alarm
-                            if (grouped.TryGetValue(LogCategory.Alarm, out var alarmItems))
+                            if (rows.Count == 0)
                             {
-                                col.Item().Text("Alarm").FontSize(12).Bold();
-                                col.Item().LineHorizontal(1);
-                                col.Item().PaddingBottom(6);
-
-                                foreach (var r in alarmItems)
+                                col.Item().PaddingTop(12)
+                                    .Text("내용 없음")
+                                    .Italic()
+                                    .FontColor(Colors.Grey.Medium);
+                            }
+                            else 
+                            {
+                            if (grouped.TryGetValue(LogCategory.Alarm, out var alarmItems))
                                 {
-                                    col.Item()
-                                        .Text($"{r.D} {r.T} | 복구시간:{r.Recovery} | {r.M}")
-                                        .FontSize(9)
-                                        .FontColor(
-                                            string.IsNullOrEmpty(r.Recovery)
-                                                ? Colors.Red.Darken2
-                                                : Colors.Black
-                                        );
+                                    col.Item().PaddingTop(30).Text("2. Alarm").FontSize(14).Bold();
+                                    col.Item().LineHorizontal(2);
+                                    col.Item().PaddingBottom(10);
+
+                                    col.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.RelativeColumn(2); // Date
+                                            columns.RelativeColumn(2); // Time
+                                            columns.RelativeColumn(3); // Message
+                                            columns.RelativeColumn(2); // Recovery
+                                        });
+
+                                        // ===== Header =====
+                                        table.Header(header =>
+                                        {
+                                            header.Cell().Background(Colors.Blue.Medium)
+                                                .Padding(5)
+                                                .Text("Date").FontColor(Colors.White).Bold();
+
+                                            header.Cell().Background(Colors.Blue.Medium)
+                                                .Padding(5)
+                                                .Text("Occur Time").FontColor(Colors.White).Bold();
+
+                                            header.Cell().Background(Colors.Blue.Medium)
+                                                .Padding(5)
+                                                .Text("Alarm Message").FontColor(Colors.White).Bold();
+
+                                            header.Cell().Background(Colors.Blue.Medium)
+                                                .Padding(5)
+                                                .Text("Recovery Time").FontColor(Colors.White).Bold();
+                                        });
+
+                                        // ===== Rows =====
+                                        for (int i = 0; i < alarmItems.Count; i++)
+                                        {
+                                            var r = alarmItems[i];
+
+                                            var bg = (i % 2 == 0)
+                                                ? Colors.LightBlue.Lighten5
+                                                : Colors.LightBlue.Lighten4;
+
+                                            table.Cell().Background(bg).Padding(6)
+                                                .Text(r.D).FontSize(9);
+
+                                            table.Cell().Background(bg).Padding(6)
+                                                .Text(r.T).FontSize(9);
+
+                                            table.Cell().Background(bg).Padding(6)
+                                                .Text(r.M)
+                                                .FontSize(9)
+                                                .FontColor(
+                                                    string.IsNullOrEmpty(r.Recovery)
+                                                        ? Colors.Red.Darken2   // ACTIVE
+                                                        : Colors.Black
+                                                );
+
+                                            table.Cell().Background(bg).Padding(6)
+                                                .Text(string.IsNullOrEmpty(r.Recovery) ? "-" : r.Recovery)
+                                                .FontSize(9);
+                                        }
+                                    });
+
+                                    col.Item().PaddingBottom(12);
                                 }
                             }
                         });
@@ -452,11 +540,10 @@ namespace PrintLogPdf
                         LogCategory.Scada,
                         LogCategory.Other
                     };
-
+                    
                     foreach (var cat in rest)
                     {
-                        if (!rows.Any(r => r.Category == cat))
-                            continue;
+                        var catRows = rows.Where(r => r.Category == cat).ToList();
 
                         doc.Page(page =>
                         {
@@ -465,6 +552,7 @@ namespace PrintLogPdf
 
                             page.Content().Column(col =>
                             {
+                                //제목은 항상 출력
                                 col.Item()
                                     .Text(SectionTitle(cat))
                                     .FontSize(14)
@@ -473,16 +561,28 @@ namespace PrintLogPdf
                                 col.Item().LineHorizontal(2);
                                 col.Item().PaddingBottom(10);
 
-                                foreach (var r in rows.Where(r => r.Category == cat))
+                                //cat 기준으로 내용 유무 판단
+                                if (catRows.Count == 0)
                                 {
-                                    col.Item()
-                                        .Text($"{r.D} {r.T} | {r.U} | {r.Ty} | {r.M}")
-                                        .FontSize(9)
-                                        .LineHeight(1.4f);
+                                    col.Item().PaddingTop(12)
+                                        .Text("내용 없음")
+                                        .Italic()
+                                        .FontColor(Colors.Grey.Medium);
+                                }
+                                else
+                                {
+                                    foreach (var r in catRows)
+                                    {
+                                        col.Item()
+                                            .Text($"{r.D} {r.T} | {r.U} | {r.Ty} | {r.M}")
+                                            .FontSize(9)
+                                            .LineHeight(1.4f);
+                                    }
                                 }
                             });
                         });
                     }
+
                 }).GeneratePdf(pdfPath);
 
                 return pdfPath;
